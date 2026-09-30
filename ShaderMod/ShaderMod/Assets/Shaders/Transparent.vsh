@@ -1,7 +1,7 @@
 #ifdef GLSL
 
-// ShaderMod：半透明地形（水等）顶点着色器。
-// 原版逻辑完全保留（顶面/侧面的透明度、雾），额外输出世界坐标、指向相机的向量和"是否顶面"。
+// ShaderMod：半透明地形（水、冰、玻璃等）顶点着色器。
+// 与原版完全相同。
 
 // <Semantic Name='POSITION' Attribute='a_position' />
 // <Semantic Name='COLOR' Attribute='a_color' />
@@ -21,9 +21,6 @@ attribute vec2 a_texcoord;
 varying vec4 v_color;
 varying vec2 v_texcoord;
 varying float v_fog;
-varying vec3 v_worldPosition;
-varying vec3 v_toCamera;
-varying float v_top;
 
 float fogIntegral(float y)
 {
@@ -53,10 +50,6 @@ void main()
 	v_color = vec4(a_color.xyz * alpha, alpha);
 
 	v_fog = calculateFog(a_position);
-
-	v_worldPosition = a_position;
-	v_toCamera = direction;
-	v_top = 1.0 - a_color.w;
 
 	gl_Position = u_viewProjectionMatrix * vec4(a_position.x - u_origin.x, a_position.y, a_position.z - u_origin.y, 1.0);
 

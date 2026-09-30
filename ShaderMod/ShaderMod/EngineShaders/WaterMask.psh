@@ -1,0 +1,27 @@
+#ifdef GLSL
+
+// ShaderMod v2：水面深度通道片元着色器：只保留水（按贴图格识别），其它半透明方块丢弃。
+
+// <Sampler Name='u_samplerState' Texture='u_texture' />
+
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform sampler2D u_texture;
+uniform vec4 u_waterSlots;
+
+varying vec2 v_texcoord;
+
+void main()
+{
+	vec2 cell = floor(v_texcoord * 16.0);
+	float slot = cell.x + cell.y * 16.0;
+	vec4 d = abs(u_waterSlots - vec4(slot));
+	// 贴图必须保持"被使用"：引擎绘制区块时会给 u_texture 赋值
+	if (min(min(d.x, d.y), min(d.z, d.w)) >= 0.5 || texture2D(u_texture, v_texcoord).a < -1.0)
+		discard;
+	gl_FragColor = vec4(1.0);
+}
+
+#endif

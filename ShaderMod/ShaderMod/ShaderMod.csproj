@@ -14,6 +14,7 @@
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <GenerateDependencyFile>false</GenerateDependencyFile>
         <ErrorReport>prompt</ErrorReport>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
         <DebugType>pdbonly</DebugType>
@@ -35,8 +36,10 @@
         </None>
     </ItemGroup>
     <ItemGroup>
-        <!-- 后处理着色器编译进 dll，由 PostProcessor 通过 GetManifestResourceStream 读取 -->
-        <EmbeddedResource Include="PostShaders\*.vsh;PostShaders\*.psh" LogicalName="ShaderMod.PostShaders.%(Filename)%(Extension)" />
+        <!-- 光影着色器与 Derivative 纹理数据编译进 dll，由 Pipeline/ShaderSource.cs 读取 -->
+        <EmbeddedResource Include="Glsl\**\*.glsl;Glsl\**\*.inc;Glsl\**\*.vsh;Glsl\**\*.fsh" LogicalName="ShaderMod.Glsl/%(RecursiveDir)%(Filename)%(Extension)" />
+        <EmbeddedResource Include="EngineShaders\*.vsh;EngineShaders\*.psh" LogicalName="ShaderMod.EngineShaders/%(Filename)%(Extension)" />
+        <EmbeddedResource Include="Data\*.gz" LogicalName="ShaderMod.Data/%(Filename)%(Extension)" />
     </ItemGroup>
     <!-- 构建后把输出目录打包成 bin\Debug\ShaderMod.scmod（或 bin\Release\ShaderMod.scmod），放进游戏的 Mods 文件夹即可 -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">

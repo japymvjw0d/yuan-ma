@@ -1,0 +1,22 @@
+#ifdef GLSL
+
+// ShaderMod v2：太阳阴影贴图（地形）片元着色器：镂空方块（树叶等）按贴图透明度丢弃。
+
+// <Sampler Name='u_samplerState' Texture='u_texture' />
+
+#ifdef GL_ES
+precision mediump float;
+#endif
+
+uniform sampler2D u_texture;
+
+varying vec2 v_texcoord;
+
+void main()
+{
+	if (texture2D(u_texture, v_texcoord).a < 0.5)
+		discard;
+	gl_FragColor = vec4(1.0);
+}
+
+#endif

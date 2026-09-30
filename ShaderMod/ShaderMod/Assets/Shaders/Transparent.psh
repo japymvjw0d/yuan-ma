@@ -1,76 +1,47 @@
 #ifdef GLSL
 
-// ShaderMod：半透明地形（水等）片元着色器。
-// 只对顶面：动态波纹法线 → 太阳高光 + 菲涅耳天空反射；侧面与原版一致。
-// 颜色为预乘 alpha（与原版一致），结果按 u_shaderStrength 与原版混合。
+// ShaderMod：半透明地形片元着色器。
+// 与原版相同，另有两个参数（未设置时都为 0，画面与原版一致）：
+// - u_vanillaFogOff：关闭原版距离雾；
+// - u_hideWater：不画水（水面由光影管线在后处理中重新绘制：反射、折射、波浪、水下雾）。
+//   水按贴图格识别：u_waterSlots 最多 4 个格号（地形图集 16×16 格），-1 表示未用。
 
 // <Sampler Name='u_samplerState' Texture='u_texture' />
 
 #ifdef GL_ES
-#ifdef GL_FRAGMENT_PRECISION_HIGH
-precision highp float;
-#else
 precision mediump float;
-#endif
 #endif
 
 uniform sampler2D u_texture;
 uniform vec3 u_fogColor;
-
-// ShaderMod 参数（未设置时为 0 → 原版画面）
-uniform float u_shaderStrength;
-uniform vec3 u_sunDirection;
-uniform float u_daylight;
-uniform float u_rain;
-uniform float u_time;
+uniform float u_vanillaFogOff;
+uniform float u_hideWater;
+uniform vec4 u_waterSlots;
 
 varying vec4 v_color;
 varying vec2 v_texcoord;
 varying float v_fog;
-varying vec3 v_worldPosition;
-varying vec3 v_toCamera;
-varying float v_top;
 
-// 两组正弦波叠加的水面高度对 x、z 的偏导（解析求导，避免依赖导数扩展）
-vec2 waveSlope(vec2 p, float t)
+bool isWater()
 {
-	float a1 = p.x * 1.7 + t * 1.3;
-	float b1 = p.y * 1.3 - t * 1.1;
-	float a2 = (p.x + p.y) * 3.1 - t * 2.2;
-	float a3 = (p.x * 0.6 - p.y * 1.9) * 2.3 + t * 1.7;
-	float dx = 1.7 * cos(a1) * cos(b1) + 0.5 * 3.1 * cos(a2) + 0.35 * 1.38 * cos(a3);
-	float dz = -1.3 * sin(a1) * sin(b1) + 0.5 * 3.1 * cos(a2) - 0.35 * 4.37 * cos(a3);
-	return vec2(dx, dz);
+	vec2 cell = floor(v_texcoord * 16.0);
+	float slot = cell.x + cell.y * 16.0;
+	vec4 d = abs(u_waterSlots - vec4(slot));
+	return min(min(d.x, d.y), min(d.z, d.w)) < 0.5;
 }
 
 void main()
 {
-	vec4 result = v_color * texture2D(u_texture, v_texcoord);
+	if (u_hideWater > 0.5 && isWater())
+		discard;
+
+	vec4 result = v_color;
+	result *= texture2D(u_texture, v_texcoord);
 
 	vec4 premultipliedFogColor = vec4(u_fogColor * result.a, result.a);
-	vec4 vanilla = mix(result, premultipliedFogColor, v_fog);
+	result = mix(result, premultipliedFogColor, v_fog * (1.0 - u_vanillaFogOff));
 
-	vec4 enhanced = vanilla;
-	if (u_shaderStrength > 0.0 && v_top > 0.5)
-	{
-		vec2 slope = waveSlope(v_worldPosition.xz, u_time) * (0.035 + 0.03 * clamp(u_rain, 0.0, 1.0));
-		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
-		vec3 view = normalize(v_toCamera);
-
-		float sunVisibility = clamp(u_daylight, 0.0, 1.0) * (1.0 - 0.8 * clamp(u_rain, 0.0, 1.0)) * clamp(u_sunDirection.y * 5.0 + 0.2, 0.0, 1.0);
-		vec3 halfVector = normalize(view + u_sunDirection);
-		float specular = pow(max(dot(normal, halfVector), 0.0), 160.0) * 2.5 * sunVisibility;
-		float fresnel = pow(1.0 - clamp(dot(normal, view), 0.0, 1.0), 5.0);
-
-		vec4 color = result;
-		// 天空反射（用雾色近似天空色），掠射角越强
-		color.rgb = mix(color.rgb, u_fogColor * color.a, fresnel * 0.45);
-		// 阳光高光（加色，不改变透明度）
-		color.rgb += vec3(1.0, 0.94, 0.82) * specular;
-		enhanced = mix(color, vec4(u_fogColor * color.a, color.a), v_fog);
-	}
-
-	gl_FragColor = mix(vanilla, enhanced, clamp(u_shaderStrength, 0.0, 1.0));
+	gl_FragColor = result;
 }
 
 #endif
