@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+        <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+        <OutputType>Library</OutputType>
+        <RootNamespace>ShaderMod</RootNamespace>
+        <TargetFramework>net10.0</TargetFramework>
+        <AssemblyName>ShaderMod</AssemblyName>
+        <Deterministic>true</Deterministic>
+        <LangVersion>preview</LangVersion>
+        <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateDependencyFile>false</GenerateDependencyFile>
+        <ErrorReport>prompt</ErrorReport>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+        <DebugType>pdbonly</DebugType>
+        <OutputPath>bin\Debug\</OutputPath>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+        <DebugType>none</DebugType>
+        <OutputPath>bin\Release\</OutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="SurvivalcraftAPI.Survivalcraft" Version="1.9.2.1"/>
+    </ItemGroup>
+    <ItemGroup>
+        <None Update="modinfo.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
+        <!-- 后处理着色器编译进 dll，由 PostProcessor 通过 GetManifestResourceStream 读取 -->
+        <EmbeddedResource Include="PostShaders\*.vsh;PostShaders\*.psh" LogicalName="ShaderMod.PostShaders.%(Filename)%(Extension)" />
+    </ItemGroup>
+    <!-- 构建后把输出目录打包成 bin\Debug\ShaderMod.scmod（或 bin\Release\ShaderMod.scmod），放进游戏的 Mods 文件夹即可 -->
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <PropertyGroup>
+            <PathOfScmod>$(TargetDir)..\$(AssemblyName).scmod</PathOfScmod>
+        </PropertyGroup>
+        <ZipDirectory SourceDirectory="$(TargetDir)" DestinationFile="$(PathOfScmod)" Overwrite="true" />
+        <Message Text="The scmod file has been created: 已打包 scmod 文件到: $(PathOfScmod)" Importance="high" />
+    </Target>
+</Project>

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://gitee.com/SC-SPM/SurvivalcraftApi/raw/SCAPI1.9/Survivalcraft/Content/modinfo-scheme.json",
+  "Name": "BSL 风格光影",
+  "Version": "1.0.0",
+  "ApiVersion": "1.9.2.1",
+  "Description": "BSL 风格光影：向阳面暖色、背阴面冷色、更鲜艳的色彩、水面波光与阳光高光、柔和泛光与电影感调色。按 O 开关（可在 设置-控制-键盘键位 中修改）。BSL-style shaders: warm sunlight, cool shade, water glints, bloom and color grading. Press O to toggle.",
+  "ScVersion": "2.4.0.0",
+  "LoadOrder": 10000,
+  "NonPersistentMod": true,
+  "GameplayImpactLevel": "Cosmetic",
+  "Link": "",
+  "Author": "",
+  "PackageName": "ShaderMod",
+  "Dependencies": {}
+}
