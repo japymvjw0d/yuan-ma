@@ -6,6 +6,8 @@ namespace ShaderMod.Pipeline;
 /// 保存 / 恢复本模组会改动的 GL 状态。
 /// 游戏引擎（GLWrapper）缓存了当前绑定的程序、帧缓冲、纹理和各种开关，并据此跳过重复调用；
 /// 只要本模组用完后把真实 GL 状态恢复原样，引擎的缓存就仍然正确，不会画错。
+/// 深度范围也要处理：游戏画第一人称手部时会把它设成 (0, 0.1)，且不一定马上改回来；
+/// 若沿用这个范围，画在远平面上的天空会盖住全部地形（画面变成灰白"石膏"）。
 /// </summary>
 internal unsafe struct GlState
 {
@@ -19,7 +21,9 @@ internal unsafe struct GlState
     fixed int m_texture3D[SavedTextureUnits];
     fixed int m_sampler[SavedTextureUnits];
     fixed byte m_colorMask[4];
+    fixed float m_depthRange[2];
     byte m_depthMask, m_depthTest, m_blend, m_cull, m_scissorTest, m_stencilTest, m_polygonOffset;
+    byte m_alphaToCoverage, m_sampleCoverage, m_rasterizerDiscard;
 
     public static GlState Save()
     {
@@ -35,6 +39,7 @@ internal unsafe struct GlState
         s.m_depthFunc = GetInteger(GL_DEPTH_FUNC);
         glGetIntegerv(GL_VIEWPORT, s.m_viewport);
         glGetIntegerv(GL_SCISSOR_BOX, s.m_scissor);
+        glGetFloatv(GL_DEPTH_RANGE, s.m_depthRange);
         for (int i = 0; i < SavedTextureUnits; i++)
         {
             glActiveTexture(GL_TEXTURE0 + (uint)i);
@@ -53,10 +58,13 @@ internal unsafe struct GlState
         s.m_scissorTest = glIsEnabled(GL_SCISSOR_TEST);
         s.m_stencilTest = glIsEnabled(GL_STENCIL_TEST);
         s.m_polygonOffset = glIsEnabled(GL_POLYGON_OFFSET_FILL);
+        s.m_alphaToCoverage = glIsEnabled(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        s.m_sampleCoverage = glIsEnabled(GL_SAMPLE_COVERAGE);
+        s.m_rasterizerDiscard = glIsEnabled(GL_RASTERIZER_DISCARD);
         return s;
     }
 
-    /// <summary>本模组的全屏通道统一使用的状态：不混合、不测深度、不剔除、不裁剪、写全部颜色</summary>
+    /// <summary>本模组的全屏通道统一使用的状态：不混合、不测深度、不剔除、不裁剪、写全部颜色、完整深度范围 (0, 1)</summary>
     public static void SetPassState()
     {
         glDisable(GL_BLEND);
@@ -65,6 +73,10 @@ internal unsafe struct GlState
         glDisable(GL_SCISSOR_TEST);
         glDisable(GL_STENCIL_TEST);
         glDisable(GL_POLYGON_OFFSET_FILL);
+        glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        glDisable(GL_SAMPLE_COVERAGE);
+        glDisable(GL_RASTERIZER_DISCARD);
+        glDepthRangef(0f, 1f);
         glColorMask(1, 1, 1, 1);
         glDepthMask(0);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -84,6 +96,7 @@ internal unsafe struct GlState
         glDepthFunc((uint)m_depthFunc);
         glViewport(m_viewport[0], m_viewport[1], m_viewport[2], m_viewport[3]);
         glScissor(m_scissor[0], m_scissor[1], m_scissor[2], m_scissor[3]);
+        glDepthRangef(m_depthRange[0], m_depthRange[1]);
         for (int i = 0; i < SavedTextureUnits; i++)
         {
             glActiveTexture(GL_TEXTURE0 + (uint)i);
@@ -100,6 +113,9 @@ internal unsafe struct GlState
         SetEnabled(GL_SCISSOR_TEST, m_scissorTest);
         SetEnabled(GL_STENCIL_TEST, m_stencilTest);
         SetEnabled(GL_POLYGON_OFFSET_FILL, m_polygonOffset);
+        SetEnabled(GL_SAMPLE_ALPHA_TO_COVERAGE, m_alphaToCoverage);
+        SetEnabled(GL_SAMPLE_COVERAGE, m_sampleCoverage);
+        SetEnabled(GL_RASTERIZER_DISCARD, m_rasterizerDiscard);
     }
 
     static void SetEnabled(uint cap, byte enabled)

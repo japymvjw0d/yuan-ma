@@ -19,6 +19,12 @@ const float rLOG2 		= 1.0 / log(2.0);
 #define saturate(x) 	clamp(x, 0.0, 1.0)
 #define clamp16F(x) 	clamp(x, 0.0, 65535.0)
 
+// 通道输出前清理：NaN / Inf 置 0（一个坏像素会经泛光扩散到全屏），其余钳到半精度范围
+vec3 SanitizeHdr(in vec3 c) {
+	if (any(isnan(c)) || any(isinf(c)) || any(notEqual(c, c))) return vec3(0.0);
+	return clamp(c, 0.0, 65504.0);
+}
+
 #define transMAD(m, v)	(mat3(m) * (v) + (m)[3].xyz)
 #define diagonal2(m)	vec2((m)[0].x, (m)[1].y)
 #define diagonal3(m)	vec3((m)[0].x, (m)[1].y, (m)[2].z)

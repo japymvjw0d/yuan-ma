@@ -57,11 +57,17 @@ vec4 SpatialUpscale(in vec2 fragCoord, in float linearDepth) {
 
 vec3 ReconstructWorldNormal(in ivec2 texel, in vec3 viewPos) {
 	ivec2 maxTexel = ivec2(screenSize) - 1;
-	ivec2 t1 = clamp(texel + ivec2(1, 0), ivec2(0), maxTexel);
-	ivec2 t2 = clamp(texel + ivec2(0, 1), ivec2(0), maxTexel);
+	// 屏幕右 / 下边缘改用左 / 上侧的像素，避免差值为零
+	ivec2 sx = texel.x < maxTexel.x ? ivec2(1, 0) : ivec2(-1, 0);
+	ivec2 sy = texel.y < maxTexel.y ? ivec2(0, 1) : ivec2(0, -1);
+	ivec2 t1 = texel + sx;
+	ivec2 t2 = texel + sy;
 	vec3 p1 = ScreenToViewSpace(vec3((vec2(t1) + 0.5) * screenPixelSize, texelFetch(depthtex0, t1, 0).x));
 	vec3 p2 = ScreenToViewSpace(vec3((vec2(t2) + 0.5) * screenPixelSize, texelFetch(depthtex0, t2, 0).x));
-	vec3 n = normalize(cross(p1 - viewPos, p2 - viewPos));
+	vec3 n = cross(p1 - viewPos, p2 - viewPos);
+	float len = length(n);
+	if (!(len > 1e-12)) return mat3(gbufferModelViewInverse) * normalize(-viewPos);
+	n /= len;
 	if (dot(n, viewPos) > 0.0) n = -n;
 	return mat3(gbufferModelViewInverse) * n;
 }
@@ -199,5 +205,5 @@ void main() {
 	vec4 fogData = SpatialUpscale(gl_FragCoord.xy, GetDepthLinear(depth));
 	color = color * fogData.a + fogData.rgb;
 
-	sceneOut = vec4(clamp16F(color), 1.0);
+	sceneOut = vec4(SanitizeHdr(color), 1.0);
 }

@@ -98,18 +98,26 @@ vec3 GetViewPos(in ivec2 texel) {
 	return ScreenToViewSpace(vec3(coord, texelFetch(depthtex1, texel, 0).x));
 }
 
-// 由深度重建法线：每个方向取深度变化较小的一侧，避免物体边缘出错
+// 由深度重建法线：每个方向取深度变化较小的一侧，避免物体边缘出错；
+// 屏幕边缘只有一侧可用；两侧都退化时退回朝向相机的方向（避免 normalize(0) 得到 NaN）
 vec3 ReconstructViewNormal(in ivec2 texel, in vec3 viewPos) {
 	ivec2 maxTexel = ivec2(screenSize) - 1;
-	vec3 left  = GetViewPos(clamp(texel - ivec2(1, 0), ivec2(0), maxTexel));
-	vec3 right = GetViewPos(clamp(texel + ivec2(1, 0), ivec2(0), maxTexel));
-	vec3 up    = GetViewPos(clamp(texel - ivec2(0, 1), ivec2(0), maxTexel));
-	vec3 down  = GetViewPos(clamp(texel + ivec2(0, 1), ivec2(0), maxTexel));
+	bool hasLeft = texel.x > 0, hasRight = texel.x < maxTexel.x;
+	bool hasUp = texel.y > 0, hasDown = texel.y < maxTexel.y;
+	vec3 left  = hasLeft  ? GetViewPos(texel - ivec2(1, 0)) : viewPos;
+	vec3 right = hasRight ? GetViewPos(texel + ivec2(1, 0)) : viewPos;
+	vec3 up    = hasUp    ? GetViewPos(texel - ivec2(0, 1)) : viewPos;
+	vec3 down  = hasDown  ? GetViewPos(texel + ivec2(0, 1)) : viewPos;
 
-	vec3 dx = abs(right.z - viewPos.z) < abs(viewPos.z - left.z) ? right - viewPos : viewPos - left;
-	vec3 dy = abs(down.z - viewPos.z) < abs(viewPos.z - up.z) ? down - viewPos : viewPos - up;
+	bool useRight = hasRight && (!hasLeft || abs(right.z - viewPos.z) < abs(viewPos.z - left.z));
+	bool useDown = hasDown && (!hasUp || abs(down.z - viewPos.z) < abs(viewPos.z - up.z));
+	vec3 dx = useRight ? right - viewPos : viewPos - left;
+	vec3 dy = useDown ? down - viewPos : viewPos - up;
 
-	vec3 normal = normalize(cross(dx, dy));
+	vec3 normal = cross(dx, dy);
+	float len = length(normal);
+	if (!(len > 1e-12)) return normalize(-viewPos);
+	normal /= len;
 	if (dot(normal, viewPos) > 0.0) normal = -normal;
 	return normal;
 }
@@ -170,7 +178,7 @@ void main() {
 		// 天空：游戏已画好（SkyDraw），这里补上 HDR 的太阳
 		vec4 clouds = SampleCloudDome(worldDir);
 		vec3 sun = RenderSun(worldDir, worldSunVector) * GetTransmittance(worldDir) * smoothstep(-0.01, 0.01, worldDir.y);
-		sceneData = vec4(clamp16F(vanilla + sun * remap(minTransmittance, 1.0, clouds.a)), 1.0);
+		sceneData = vec4(SanitizeHdr(vanilla + sun * remap(minTransmittance, 1.0, clouds.a)), 1.0);
 		return;
 	}
 
@@ -230,5 +238,5 @@ void main() {
 	if (debugView == 1) { sceneData = vec4(worldNormal * 0.5 + 0.5, 1.0); return; }
 	if (debugView == 3) { sceneData = vec4(vec3(skyExposure), 1.0); return; }
 
-	sceneData = vec4(clamp16F(vanilla * relight), 1.0);
+	sceneData = vec4(SanitizeHdr(vanilla * relight), 1.0);
 }

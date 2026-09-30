@@ -61,7 +61,7 @@ vec3 DoNightEye(in vec3 color) {
 }
 
 float fastAcos(in float x) {
-    float a = abs(x);
+    float a = min(abs(x), 1.0); // 方向向量归一化误差可能让 |x| 略大于 1
 	float r = 1.570796 - 0.175394 * a;
 	r *= sqrt(1.0 - a);
 

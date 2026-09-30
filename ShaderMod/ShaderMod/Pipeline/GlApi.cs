@@ -34,10 +34,14 @@ internal static unsafe class GlApi
     public const uint GL_UNPACK_ROW_LENGTH = 0x0CF2, GL_PIXEL_UNPACK_BUFFER_BINDING = 0x88EF, GL_PIXEL_UNPACK_BUFFER = 0x88EC;
     public const uint GL_MAX_TEXTURE_SIZE = 0x0D33;
     public const uint GL_ALWAYS = 0x0207;
+    public const uint GL_DEPTH_RANGE = 0x0B70;
+    public const uint GL_SAMPLE_ALPHA_TO_COVERAGE = 0x809E, GL_SAMPLE_COVERAGE = 0x80A0, GL_RASTERIZER_DISCARD = 0x8C89;
 
     public static delegate* unmanaged<uint> glGetError;
     public static delegate* unmanaged<uint, int*, void> glGetIntegerv;
     public static delegate* unmanaged<uint, byte*, void> glGetBooleanv;
+    public static delegate* unmanaged<uint, float*, void> glGetFloatv;
+    public static delegate* unmanaged<float, float, void> glDepthRangef;
     public static delegate* unmanaged<uint, byte> glIsEnabled;
     public static delegate* unmanaged<uint, void> glEnable;
     public static delegate* unmanaged<uint, void> glDisable;
@@ -117,6 +121,8 @@ internal static unsafe class GlApi
         glGetError = (delegate* unmanaged<uint>)Get("glGetError");
         glGetIntegerv = (delegate* unmanaged<uint, int*, void>)Get("glGetIntegerv");
         glGetBooleanv = (delegate* unmanaged<uint, byte*, void>)Get("glGetBooleanv");
+        glGetFloatv = (delegate* unmanaged<uint, float*, void>)Get("glGetFloatv");
+        glDepthRangef = (delegate* unmanaged<float, float, void>)Get("glDepthRangef");
         glIsEnabled = (delegate* unmanaged<uint, byte>)Get("glIsEnabled");
         glEnable = (delegate* unmanaged<uint, void>)Get("glEnable");
         glDisable = (delegate* unmanaged<uint, void>)Get("glDisable");

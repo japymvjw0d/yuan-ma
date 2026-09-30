@@ -39,5 +39,7 @@ void main() {
 	if (isEyeInWater == 0) fogData = CalculateVolumetricFog(worldPos, worldDir, dither);
 	else fogData.rgb = UnderwaterVolumetricLight(worldPos, worldDir, dither);
 
-	fogData = vec4(clamp16F(fogData.rgb), saturate(fogData.a));
+	float transmittance = fogData.a;
+	if (isnan(transmittance) || isinf(transmittance)) transmittance = 1.0;
+	fogData = vec4(SanitizeHdr(fogData.rgb), saturate(transmittance));
 }

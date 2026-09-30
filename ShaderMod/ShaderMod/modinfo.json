@@ -1,7 +1,7 @@
 {
   "$schema": "https://gitee.com/SC-SPM/SurvivalcraftApi/raw/SCAPI1.9/Survivalcraft/Content/modinfo-scheme.json",
   "Name": "Derivative 光影（自用移植）",
-  "Version": "2.0.0",
+  "Version": "2.0.1",
   "ApiVersion": "1.9.2.1",
   "Description": "移植 Java 版 MC 光影 Derivative（HaringPro，All Rights Reserved）：物理大气天空、体积云、太阳阴影、体积光、水面反射折射、ACES 调色。仅供个人自用，不得发布或分发。按 O 开关。Personal-use port of the Derivative shaders; not for distribution. Press O to toggle.",
   "ScVersion": "2.4.0.0",
