@@ -9,8 +9,8 @@ using GameEntitySystem;
 namespace SprintMod;
 
 /// <summary>
-/// 疾跑 / 加速挖掘模组。
-/// Z：打开设置面板（打开期间游戏暂停），用滑块设置疾跑倍率和挖掘倍率（1.0 倍 = 不生效）。
+/// 疾跑 / 加速挖掘 / 攻击增幅模组。
+/// Z：打开设置面板（打开期间游戏暂停），用滑块设置疾跑、挖掘、攻击力、攻击距离倍率（1.0 倍 = 不生效，挖掘最右端 = 秒挖）。
 /// X：全部功能的总开关。
 /// 两个按键都注册为模组键位，可在 设置-控制-键盘键位 中修改。
 /// </summary>
@@ -25,6 +25,8 @@ public sealed class SprintModLoader : ModLoader
     const string SettingsElementName = "Sprint";
     const string SprintAttribute = "SprintMultiplier";
     const string DigAttribute = "DigMultiplier";
+    const string AttackAttribute = "AttackMultiplier";
+    const string RangeAttribute = "RangeMultiplier";
     const string LegacySprintAttribute = "Multiplier"; // v1.0 的旧格式
 
     /// <summary>总开关，每次进入存档默认关闭</summary>
@@ -33,8 +35,14 @@ public sealed class SprintModLoader : ModLoader
     /// <summary>疾跑倍率（1.0 = 不生效），保存到 ModSettings.xml</summary>
     public static float SprintMultiplier { get; internal set; } = SprintLogic.MinMultiplier;
 
-    /// <summary>挖掘倍率（1.0 = 不生效），保存到 ModSettings.xml</summary>
+    /// <summary>挖掘倍率（1.0 = 不生效，5.1 = 秒挖），保存到 ModSettings.xml</summary>
     public static float DigMultiplier { get; internal set; } = SprintLogic.MinMultiplier;
+
+    /// <summary>攻击力倍率（1.0 = 不生效），保存到 ModSettings.xml</summary>
+    public static float AttackMultiplier { get; internal set; } = SprintLogic.MinMultiplier;
+
+    /// <summary>近战攻击距离倍率（1.0 = 不生效），保存到 ModSettings.xml</summary>
+    public static float RangeMultiplier { get; internal set; } = SprintLogic.MinMultiplier;
 
     /// <summary>最近一次打开的设置面板；它还在 DialogsManager.Dialogs 里就表示面板开着</summary>
     static SprintSettingsDialog s_panel;
@@ -50,6 +58,8 @@ public sealed class SprintModLoader : ModLoader
     {
         ModsManager.RegisterHook("UpdateInput", this);
         ModsManager.RegisterHook("OnMinerDig", this);
+        ModsManager.RegisterHook("OnMinerHit", this);
+        ModsManager.RegisterHook("OnPlayerInputHit", this);
         ModsManager.RegisterHook("ChangeGameTimeDelta", this);
         ModsManager.RegisterHook("OnProjectLoaded", this);
     }
@@ -93,6 +103,8 @@ public sealed class SprintModLoader : ModLoader
                         MasterEnabled,
                         SprintMultiplier,
                         DigMultiplier,
+                        AttackMultiplier,
+                        RangeMultiplier,
                         GetKeyDisplayName(PanelKeyName, "Z"));
                     player.ComponentGui?.DisplaySmallMessage(message, Color.White, false, false);
                 }
@@ -107,20 +119,78 @@ public sealed class SprintModLoader : ModLoader
         }
     }
 
-    /// <summary>挖掘进度每帧由 已挖时间 ÷ 挖掘时间 重新计算，乘以倍率即为按倍率加速</summary>
+    /// <summary>
+    /// 倍率档：挖掘进度每帧由 已挖时间 ÷ 挖掘时间 重新计算，乘以倍率即为按倍率加速。
+    /// 秒挖档：进度直接为 1，并置 digged = true —— 与创造模式相同，方块立即破坏而不等挥手动作；
+    /// 两次破坏的间隔仍由原版的挖掘间隔（0.33 秒）控制。不可破坏的方块、等级不足的工具不受影响。
+    /// </summary>
     public override void OnMinerDig(ComponentMiner miner, TerrainRaycastResult raycastResult, ref float digProgress, out bool digged)
     {
         digged = false;
         try
         {
-            if (miner?.ComponentPlayer != null)
+            if (miner?.ComponentPlayer == null || !MasterEnabled)
             {
-                digProgress = SprintLogic.ScaleDigProgress(digProgress, MasterEnabled, DigMultiplier);
+                return;
             }
+            if (SprintLogic.IsInstantDig(DigMultiplier))
+            {
+                if (float.IsFinite(miner.CalculateDigTime(raycastResult.Value, miner.ActiveBlockValue))
+                    && miner.IsLevelSufficientForTool(miner.ActiveBlockValue))
+                {
+                    digProgress = 1f;
+                    digged = true;
+                }
+                return;
+            }
+            digProgress = SprintLogic.ScaleDigProgress(digProgress, MasterEnabled, DigMultiplier);
         }
         catch (Exception e)
         {
             LogErrorOnce("OnMinerDig", e);
+        }
+    }
+
+    /// <summary>玩家近战伤害乘以攻击力倍率（在武器伤害上放大，之后原版再乘力量系数）</summary>
+    public override void OnMinerHit(ComponentMiner miner,
+        ComponentBody componentBody,
+        Vector3 hitPoint,
+        Vector3 hitDirection,
+        ref float attackPower,
+        ref float playerProbability,
+        ref float creatureProbability,
+        out bool hitted)
+    {
+        hitted = false;
+        try
+        {
+            if (miner?.ComponentPlayer != null)
+            {
+                attackPower = SprintLogic.ScaleAttack(attackPower, MasterEnabled, AttackMultiplier);
+            }
+        }
+        catch (Exception e)
+        {
+            LogErrorOnce("OnMinerHit", e);
+        }
+    }
+
+    /// <summary>玩家近战攻击距离（原版 2 格）乘以攻击距离倍率</summary>
+    public override void OnPlayerInputHit(ComponentPlayer componentPlayer,
+        ref bool playerOperated,
+        ref double timeIntervalHit,
+        ref float meleeAttackRange,
+        bool skippedByOtherMods,
+        out bool skipVanilla)
+    {
+        skipVanilla = false;
+        try
+        {
+            meleeAttackRange = SprintLogic.ScaleRange(meleeAttackRange, MasterEnabled, RangeMultiplier);
+        }
+        catch (Exception e)
+        {
+            LogErrorOnce("OnPlayerInputHit", e);
         }
     }
 
@@ -196,7 +266,9 @@ public sealed class SprintModLoader : ModLoader
             new XElement(
                 SettingsElementName,
                 new XAttribute(SprintAttribute, SprintLogic.FormatMultiplier(SprintMultiplier)),
-                new XAttribute(DigAttribute, SprintLogic.FormatMultiplier(DigMultiplier))
+                new XAttribute(DigAttribute, SprintLogic.FormatMultiplier(DigMultiplier)),
+                new XAttribute(AttackAttribute, SprintLogic.FormatMultiplier(AttackMultiplier)),
+                new XAttribute(RangeAttribute, SprintLogic.FormatMultiplier(RangeMultiplier))
             )
         );
     }
@@ -213,9 +285,17 @@ public sealed class SprintModLoader : ModLoader
         {
             SprintMultiplier = sprintMultiplier;
         }
-        if (SprintLogic.TryParseMultiplier(element.Attribute(DigAttribute)?.Value, out float digMultiplier))
+        if (SprintLogic.TryParseMultiplier(element.Attribute(DigAttribute)?.Value, out float digMultiplier, SprintLogic.MaxDigMultiplier))
         {
             DigMultiplier = digMultiplier;
+        }
+        if (SprintLogic.TryParseMultiplier(element.Attribute(AttackAttribute)?.Value, out float attackMultiplier))
+        {
+            AttackMultiplier = attackMultiplier;
+        }
+        if (SprintLogic.TryParseMultiplier(element.Attribute(RangeAttribute)?.Value, out float rangeMultiplier))
+        {
+            RangeMultiplier = rangeMultiplier;
         }
     }
 
@@ -251,17 +331,26 @@ internal static class SprintLogic
     public const float MaxMultiplier = 5f;
     public const float Step = 0.1f;
 
-    /// <summary>限制到 [1, 5] 并按 0.1 取整</summary>
-    public static float ClampMultiplier(float value) =>
+    /// <summary>挖掘滑块最右端多出的一档，表示秒挖</summary>
+    public const float InstantDigValue = MaxMultiplier + Step;
+    public const float MaxDigMultiplier = InstantDigValue;
+
+    /// <summary>限制到 [1, max] 并按 0.1 取整，max 默认为 5</summary>
+    public static float ClampMultiplier(float value, float max = MaxMultiplier) =>
         float.IsFinite(value)
-            ? MathF.Round(Math.Clamp(value, MinMultiplier, MaxMultiplier) / Step) * Step
+            ? MathF.Round(Math.Clamp(value, MinMultiplier, max) / Step) * Step
             : MinMultiplier;
 
-    public static bool TryParseMultiplier(string text, out float multiplier)
+    /// <summary>挖掘倍率限制到 [1, 5.1]，5.1 = 秒挖</summary>
+    public static float ClampDigMultiplier(float value) => ClampMultiplier(value, MaxDigMultiplier);
+
+    public static bool IsInstantDig(float digMultiplier) => digMultiplier > MaxMultiplier + Step / 2f;
+
+    public static bool TryParseMultiplier(string text, out float multiplier, float max = MaxMultiplier)
     {
         if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value) && float.IsFinite(value))
         {
-            multiplier = ClampMultiplier(value);
+            multiplier = ClampMultiplier(value, max);
             return true;
         }
         multiplier = MinMultiplier;
@@ -273,7 +362,13 @@ internal static class SprintLogic
 
     public static string FormatMultiplier(float multiplier) => multiplier.ToString("0.0", CultureInfo.InvariantCulture);
 
-    public static string FormatToggleMessage(bool enabled, float sprintMultiplier, float digMultiplier, string panelKey)
+    public static string FormatToggleMessage(
+        bool enabled,
+        float sprintMultiplier,
+        float digMultiplier,
+        float attackMultiplier,
+        float rangeMultiplier,
+        string panelKey)
     {
         if (!enabled)
         {
@@ -284,9 +379,21 @@ internal static class SprintLogic
         {
             parts.Add($"疾跑 {FormatMultiplier(sprintMultiplier)} 倍");
         }
-        if (IsActive(digMultiplier))
+        if (IsInstantDig(digMultiplier))
+        {
+            parts.Add("挖掘 秒挖");
+        }
+        else if (IsActive(digMultiplier))
         {
             parts.Add($"挖掘 {FormatMultiplier(digMultiplier)} 倍");
+        }
+        if (IsActive(attackMultiplier))
+        {
+            parts.Add($"攻击 {FormatMultiplier(attackMultiplier)} 倍");
+        }
+        if (IsActive(rangeMultiplier))
+        {
+            parts.Add($"距离 {FormatMultiplier(rangeMultiplier)} 倍");
         }
         return parts.Count == 0
             ? $"功能：开启（未设置参数，按 {panelKey} 设置）"
@@ -295,6 +402,13 @@ internal static class SprintLogic
 
     public static float ScaleDigProgress(float progress, bool enabled, float digMultiplier) =>
         enabled && IsActive(digMultiplier) ? Math.Clamp(progress * digMultiplier, 0f, 1f) : progress;
+
+    public static float ScaleAttack(float attackPower, bool enabled, float attackMultiplier) =>
+        enabled && IsActive(attackMultiplier) ? attackPower * attackMultiplier : attackPower;
+
+    /// <summary>距离 ≤ 0 表示该武器不能近战（例如模组枪械），保持原样</summary>
+    public static float ScaleRange(float meleeAttackRange, bool enabled, float rangeMultiplier) =>
+        enabled && IsActive(rangeMultiplier) && meleeAttackRange > 0f ? meleeAttackRange * rangeMultiplier : meleeAttackRange;
 
     /// <summary>
     /// 把速度设为 基础速度 × 倍率。如果速度被游戏或其他模组改过，就把新值当作基础速度，
