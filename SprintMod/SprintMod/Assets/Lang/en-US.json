@@ -1,6 +1,6 @@
 {
   "KeyboardMappingScreen": {
-    "SprintMod_Toggle": "Toggle Sprint",
-    "SprintMod_Cycle": "Sprint Multiplier"
+    "SprintMod_Toggle": "Sprint/Dig Master Switch",
+    "SprintMod_Cycle": "Sprint/Dig Settings Panel"
   }
 }

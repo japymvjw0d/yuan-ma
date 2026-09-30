@@ -1,6 +1,6 @@
 {
   "KeyboardMappingScreen": {
-    "SprintMod_Toggle": "疾跑开关",
-    "SprintMod_Cycle": "疾跑倍率"
+    "SprintMod_Toggle": "疾跑挖掘总开关",
+    "SprintMod_Cycle": "疾跑挖掘设置面板"
   }
 }
